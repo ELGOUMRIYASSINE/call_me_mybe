@@ -64,33 +64,44 @@ class Engine():
         except FileNotFoundError:
             print("Vocab file not found!")
         return valide_tokens
-
+    def functions_as_prompt(self):
+        func_prompt = None
+        i = 0
+        for function in self.functions_definition:
+            func_prompt += f"- {function["name"]}("
+            for parameter in function["parameters"]:
+                if i == 0:
+                    func_prompt += ","
+                func_prompt += f"{parameter}:{parameter["type"]}"
+            i += 1
     def main(self):
         try:
             self.checker()
             self.load()
-            
+            valide_tokens_ids = self.get_valid_token()
+            for prompt in self.prompts:
+                general_prompt = f''' You are a function calling assistant. Your task is to analyze a user request and respond with a single JSON object that calls the correct function with the correct arguments.
+
+                                    Available functions:
+                                    - fn_add_numbers(a: number, b: number): Add two numbers together and return their sum.
+                                    - fn_greet(name: string): Generate a greeting message for a person by name.
+                                    - fn_reverse_string(s: string): Reverse a string and return the reversed result.
+
+                                    You must respond using exactly this JSON format and nothing else:
+                                    {"name": "<function_name>", "parameters": {"<param1>": <value1>, "<param2>": <value2>}}
+
+                                    Do not include any explanation, extra text, or formatting outside the JSON object.
+
+                                    User request: {prompt["prompt"]}
+
+                                    Function call:
+                                '''
 
         except Exception as e:
             print(f"Error -> {e}")
         # start constraining
-        result = ""
-        general_prompt = """You are a function calling assistant. Your task is to analyze a user request and respond with a single JSON object that calls the correct function with the correct arguments.
-
-            Available functions:
-            - fn_add_numbers(a: number, b: number): Add two numbers together and return their sum.
-            - fn_greet(name: string): Generate a greeting message for a person by name.
-            - fn_reverse_string(s: string): Reverse a string and return the reversed result.
-
-            You must respond using exactly this JSON format and nothing else:
-            {"name": "<function_name>", "parameters": {"<param1>": <value1>, "<param2>": <value2>}}
-
-            Do not include any explanation, extra text, or formatting outside the JSON object.
-
-            User request: "What is the sum of 2 and 3?"
-
-            Function call:
-            """
+        # result = ""
+        
         # for prmpt in self.prompts:
 
         # print(self.prompts)
