@@ -1,6 +1,6 @@
 import json
 import sys
-
+from llm_sdk import Small_LLM_Model as sdk
 from .data_checker import DataChecker
 
 class Engine():
@@ -9,6 +9,8 @@ class Engine():
         self.prompts = {}
         self.functions_definition = {}
         self.statics = ['{"prompt":', ',"name": ', ',"parameters": ', '},']
+        self.llm = sdk()
+
     def checker(self) -> None:
         try:
             if len(sys.argv) > 1:
@@ -23,6 +25,7 @@ class Engine():
                 self.data_source["output"] = "data/output/function_calls.json"
         except (json.decoder.JSONDecodeError, FileNotFoundError) as e:
             print("Somthing Went Wrong => ", e.__str__())
+
     def load(self) -> None:
         with open(self.data_source['input'], 'r') as inpt, open(self.data_source["functions_definition"], 'r') as funcdef:
             try:
@@ -45,12 +48,29 @@ class Engine():
                     f"Missing configuration key: {e}"
                 )
 
+    def get_valid_token(self):
+        vocab = self.llm.get_path_to_vocab_file()
+        valide_tokens = None
+        valid_char = "abcdefghijklmnopqrstuvwxyz0123456789_{}\":,.-"
+        try:
+            tokens = None
+            with open(vocab, "r") as file:
+                tokens = json.load(file)
+            valide_tokens = {
+                token_id
+                for token_str, token_id in tokens.items()
+                if all(c in valid_char for c in token_str)
+            }
+        except FileNotFoundError:
+            print("Vocab file not found!")
+        return valide_tokens
+
     def main(self):
         try:
             self.checker()
-            print(self.functions_definition)
-            print(self.prompts)
-            # self.load()
+            self.load()
+            
+
         except Exception as e:
             print(f"Error -> {e}")
         # start constraining
