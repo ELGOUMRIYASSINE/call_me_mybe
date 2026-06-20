@@ -2,6 +2,7 @@ import json
 import sys
 from llm_sdk import Small_LLM_Model as sdk
 from .data_checker import DataChecker
+import numpy as np
 
 class Engine():
     def __init__(self):
@@ -64,41 +65,66 @@ class Engine():
         except FileNotFoundError:
             print("Vocab file not found!")
         return valide_tokens
+
     def functions_as_prompt(self):
-        func_prompt = None
+        func_prompt = ""
         i = 0
         for function in self.functions_definition:
-            func_prompt += f"- {function["name"]}("
-            for parameter in function["parameters"]:
-                if i == 0:
-                    func_prompt += ","
-                func_prompt += f"{parameter}:{parameter["type"]}"
-            i += 1
+            func_prompt += f"- {function['name']}("
+            for p_name, p_type in function["parameters"].items():
+                if i != 0:
+                    func_prompt += ", "
+                func_prompt += f"{p_name}:{p_type}"
+                i += 1
+            func_prompt += f"): {function['description']} \n"
+        return func_prompt
+    
+    def grep_prompt(self, prompt):
+        general_prompt = ""
+        start = '{"name: "'
+        example = '"name": "<function_name>", "parameters": {"<param1>": <value1>, "<param2>": <value2>}'
+        general_prompt = f"""
+You are a function calling assistant. Your task is to analyze a user request and respond with a single JSON object that calls the correct function with the correct arguments.
+Available functions:
+{self.functions_as_prompt()}
+You must respond using exactly this JSON format and nothing else:
+{example}
+Do not include any explanation, extra text, or formatting outside the JSON object.
+
+User request: {prompt["prompt"]}
+
+Function call:
+{start}
+"""
+        return general_prompt
+
     def main(self):
+        self.checker()
+        self.load()
         try:
-            self.checker()
-            self.load()
             valide_tokens_ids = self.get_valid_token()
-            for prompt in self.prompts:
-                general_prompt = f''' You are a function calling assistant. Your task is to analyze a user request and respond with a single JSON object that calls the correct function with the correct arguments.
+            with open("result.txt", "w") as file:
+                for prompt in self.prompts:
+                    generated_prompt = self.grep_prompt(prompt)
+                    i = 0
+                    while i < 25:
+                        logits = self.llm.get_logits_from_input_ids(self.llm.encode(generated_prompt)[0].tolist())
+                        logits = np.array(logits)
+                        masked_logits = np.full_like(logits, float('-inf'))
 
-                                    Available functions:
-                                    - fn_add_numbers(a: number, b: number): Add two numbers together and return their sum.
-                                    - fn_greet(name: string): Generate a greeting message for a person by name.
-                                    - fn_reverse_string(s: string): Reverse a string and return the reversed result.
-
-                                    You must respond using exactly this JSON format and nothing else:
-                                    {"name": "<function_name>", "parameters": {"<param1>": <value1>, "<param2>": <value2>}}
-
-                                    Do not include any explanation, extra text, or formatting outside the JSON object.
-
-                                    User request: {prompt["prompt"]}
-
-                                    Function call:
-                                '''
+                        for token in valide_tokens_ids:
+                                masked_logits[token] = logits[token]
+                        next_token_id = int(np.argmax(masked_logits))
+                        print(self.llm.decode(masked_logits[next_token_id]))
+                        exit()
+                        output = self.llm.decode(masked_logits[next_token_id])
+                        file.write(output)
+                        generated_prompt += output
+                        i += 1
+                    exit()
 
         except Exception as e:
-            print(f"Error -> {e}")
+            raise e
         # start constraining
         # result = ""
         

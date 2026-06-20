@@ -1,1 +1,1 @@
-print(all([True, False]))
+result = float('-inf')
