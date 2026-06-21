@@ -81,7 +81,7 @@ class Engine():
     
     def grep_prompt(self, prompt):
         general_prompt = ""
-        start = '{"name: "'
+        start = '{"name": '
         example = '"name": "<function_name>", "parameters": {"<param1>": <value1>, "<param2>": <value2>}'
         general_prompt = f"""
 You are a function calling assistant. Your task is to analyze a user request and respond with a single JSON object that calls the correct function with the correct arguments.
@@ -103,10 +103,13 @@ Function call:
         self.load()
         try:
             valide_tokens_ids = self.get_valid_token()
-            with open("result.txt", "w") as file:
+            with open("result.json", "w") as file:
                 for prompt in self.prompts:
                     generated_prompt = self.grep_prompt(prompt)
                     i = 0
+                    tracker = 0 
+                    start = '{"name": '
+                    file.write(start)
                     while i < 25:
                         logits = self.llm.get_logits_from_input_ids(self.llm.encode(generated_prompt)[0].tolist())
                         logits = np.array(logits)
@@ -115,76 +118,21 @@ Function call:
                         for token in valide_tokens_ids:
                                 masked_logits[token] = logits[token]
                         next_token_id = int(np.argmax(masked_logits))
-                        print(self.llm.decode(masked_logits[next_token_id]))
-                        exit()
-                        output = self.llm.decode(masked_logits[next_token_id])
+                        output = self.llm.decode(next_token_id)
+                        start += output
                         file.write(output)
                         generated_prompt += output
+                        if start[len(start) - 1] == "," and tracker == 0:
+                            generated_prompt += ', "parameters": {'
+                            start += ', "parameters": {'
+                            tracker += 1
+                        if start[len(start) - 1] == "}" and start[len(start) - 2] == "}":
+                            i = 25
                         i += 1
-                    exit()
+                    # exit()
 
         except Exception as e:
             raise e
-        # start constraining
-        # result = ""
-        
-        # for prmpt in self.prompts:
-
-        # print(self.prompts)
-        # print("break")
-        # print(self.functions_definition)
 
 Engine1 = Engine()
 Engine1.main()
-
-
-# try:
-#     with open("data/input/functions_definition.json", "r") as f:
-#         dd = json.load(f)
-#         print(dd)
-# except json.decoder.JSONDecodeError:
-#     print("Json format incorrect")
-
-# from llm_sdk import Small_LLM_Model
-
-# model = Small_LLM_Model()
-
-# print(model.encode("yassine"))
-
-# with open(model.get_path_to_vocab_file(), "r") as f:
-#     vocab = json.load(f)
-
-# # id_to_token = {v: k for k, v in vocab.items()}
-
-# # print(id_to_token)
-# prompt = """You are a function calling assistant. Your task is to analyze a user request and respond with a single JSON object that calls the correct function with the correct arguments.
-
-# Available functions:
-# - fn_add_numbers(a: number, b: number): Add two numbers together and return their sum.
-# - fn_greet(name: string): Generate a greeting message for a person by name.
-# - fn_reverse_string(s: string): Reverse a string and return the reversed result.
-
-# You must respond using exactly this JSON format and nothing else:
-# {"name": "<function_name>", "parameters": {"<param1>": <value1>, "<param2>": <value2>}}
-
-# Do not include any explanation, extra text, or formatting outside the JSON object.
-
-# User request: "What is the sum of 2 and 3?"
-
-# Function call:
-# """
-# statics = ['{"name": "' '", "parameters": {']
-
-# # state = True
-# result = ""
-# i = 0
-# while i < 25:
-#     logits = model.get_logits_from_input_ids(model.encode(prompt)[0].tolist())
-#     result += model.decode(logits.index(max(logits)))
-#     prompt += result  
-#     i += 1
-
-# print(result)
-# # print(logits)
-
-# # print(model.decode(logits.index(max(logits))))
