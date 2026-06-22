@@ -1,1 +1,38 @@
-result = float('-inf')
+import json
+import sys
+
+sys.path.append("/goinfre/yelgoumr/call_me_mybe")
+from llm_sdk import Small_LLM_Model as sdk
+# from .data_checker import DataChecker
+import numpy as np
+
+
+llm = sdk()
+
+# to analyze a user request and respond with a single JSON object that calls the correct function with the correct arguments.
+generated_prompt = """
+You are a function calling assistant. Your task is to give me all the functionwe have and i will give you the available functions
+here is available functions :
+1: fn_add_numbers
+2: fn_greet
+3: fn_reverse_string
+4: fn_get_square_root
+5: fn_substitute_string_with_regex
+
+answer just giving me function in a line !
+
+answer:
+
+"""
+result = ""
+tokens = {}
+while "fn_substitute_string_with_regex" not in result:
+    logits = llm.get_logits_from_input_ids(llm.encode(generated_prompt)[0].tolist())
+    output = llm.decode(np.argmax(logits))
+    print(output)
+    tokens[output] = int(np.argmax(logits))
+    result += output
+    generated_prompt += output
+
+print(result)
+print(tokens)

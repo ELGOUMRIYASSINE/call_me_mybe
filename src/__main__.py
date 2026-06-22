@@ -28,17 +28,29 @@ class Engine():
             print("Somthing Went Wrong => ", e.__str__())
 
 
-    def get_valid_token(self, step, output):
+    def get_valid_token(self, step, result=None, index=0):
         vocab = self.llm.get_path_to_vocab_file()
         valide_tokens = None
-        string = "abcdefghijklmnopqrstuvwxyz_"
-        number = "0123456789"
+        functions_tokens = ["fn","_add","_numbers","_g","reet","_reverse","_string","_get","_square","_root","_sub","stitute","_with","_regex"]       
+        string = "abcdefghijklmnopqrstuvwxyz"
+        number = "0123456789."
+        function_names = [func["name"] for func in self.functions_definition]
         if step == "name":
-            valid_chars = string
-        elif step == "number":
-            valid_chars = number
+            return functions_tokens
+        elif step == "parameter":
+            func_name = ""
+            for func in function_names:
+                if func in result:
+                    func_name = func
+            for name, type in self.functions_definition[func_name]["parameters"].items():
+                if not name in result:
+                    if type == "number":
+                        return number
+                    elif type == "string":
+                        return string
         try:
             tokens = None
+
             with open(vocab, "r") as file:
                 tokens = json.load(file)
             valide_tokens = {
@@ -83,48 +95,27 @@ Function call:
 
     def main(self):
         self.checker()
-        print(self.functions_definition)
+        stages = ["name", "parameters"]
+        function_names = [func["name"] for func in self.functions_definition]
+        print(function_names)
         exit()
-        statics = ['{"name: "','"', ",", " parameters: {", "}"]
-        step = "name"
-        try:
-            with open("result.json", "w") as file:
-                for prompt in self.prompts:
-                    generated_prompt = self.grep_prompt(prompt) + start
-                    i = 0
-                    file.write(start)
-                    while i < 65:
-                        if step == "parameters":
-                            pass
-                            # step = get_parameter_type(func_name)
-                        valide_tokens_ids = self.get_valid_token(step)
-                        logits = self.llm.get_logits_from_input_ids(self.llm.encode(generated_prompt)[0].tolist())
-                        logits = np.array(logits)
-                        masked_logits = np.full_like(logits, float('-inf'))
+        valide_tokens = self.get_valid_token("name")
+        for i in stages:
+            pass
+            # i need to restrict tokens based on the available function that i have
 
-                        # i need to know in wish part i'm to restrict tokens
-                        
-                        for token in valide_tokens_ids:
-                                masked_logits[token] = logits[token]
-                        
-                        next_token_id = int(np.argmax(masked_logits))
-                        output = self.llm.decode(next_token_id)
-                        start += output
-                        file.write(output)
-                        generated_prompt += output
-                        if start[len(start) - 1] == "," and tracker == 0:
-                            generated_prompt += ' "parameters": {"'
-                            file.write(' "parameters": {"')
-                            start += ' "parameters": {"'
-                            tracker += 1
-                        if ("name:" in start) and (not "parameters" in start):
-                            step = "parameters"
-                        if start[len(start) - 1] == "}" and start[len(start) - 2] == "}":
-                            i = 65
-                        i += 1
 
-        except Exception as e:
-            raise e
+        
 
 Engine1 = Engine()
 Engine1.main()
+
+
+#  valide_tokens_ids = self.get_valid_token(step)
+#                         logits = self.llm.get_logits_from_input_ids(self.llm.encode(generated_prompt)[0].tolist())
+#                         logits = np.array(logits)
+#                         masked_logits = np.full_like(logits, float('-inf'))
+#                         # i need to know in wish part i'm to restrict tokens
+#                         for token in valide_tokens_ids:
+#                                 masked_logits[token] = logits[token]
+#                         next_token_id = int(np.argmax(masked_logits))
