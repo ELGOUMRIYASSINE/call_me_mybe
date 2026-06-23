@@ -31,10 +31,15 @@ class Engine():
     def get_valid_token(self, step, result=None, index=0):
         vocab = self.llm.get_path_to_vocab_file()
         valide_tokens = None
-        functions_tokens = ["fn","_add","_numbers","_g","reet","_reverse","_string","_get","_square","_root","_sub","stitute","_with","_regex"]       
+        function_names = [func["name"] for func in self.functions_definition]
+        functions_tokens = []
+        for func_name in function_names:
+            functions_tokens.extend(self.llm.encode(func_name)[0].tolist())
+        print(functions_tokens)
+        exit()
+        # functions_tokens = ["fn","_add","_numbers","_g","reet","_reverse","_string","_get","_square","_root","_sub","stitute","_with","_regex"]       
         string = "abcdefghijklmnopqrstuvwxyz"
         number = "0123456789."
-        function_names = [func["name"] for func in self.functions_definition]
         if step == "name":
             return functions_tokens
         elif step == "parameter":
@@ -79,26 +84,24 @@ class Engine():
         general_prompt = ""
         example = '{"name": "<function_name>", "parameters": {"<param1>": <value1>, "<param2>": <value2>}}'
         general_prompt = f"""
-You are a function calling assistant. Your task is to analyze a user request and respond with a single JSON object that calls the correct function with the correct arguments.
-Available functions:
-{self.functions_as_prompt()}
-You must respond using exactly this JSON format and nothing else:
-{example}
-Do not include any explanation, extra text, or formatting outside the JSON object.
+        You are a function calling assistant. Your task is to analyze a user request and respond with a single JSON object that calls the correct function with the correct arguments.
+        Available functions:
+        {self.functions_as_prompt()}
+        You must respond using exactly this JSON format and nothing else:
+        {example}
+        Do not include any explanation, extra text, or formatting outside the JSON object.
 
-User request: {prompt["prompt"]}
+        User request: {prompt["prompt"]}
 
-Function call:
+        Function call:
 
-"""
+        """
         return general_prompt
 
     def main(self):
         self.checker()
         stages = ["name", "parameters"]
         function_names = [func["name"] for func in self.functions_definition]
-        print(function_names)
-        exit()
         valide_tokens = self.get_valid_token("name")
         for i in stages:
             pass
