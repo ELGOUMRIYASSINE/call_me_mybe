@@ -3,6 +3,7 @@ import sys
 from llm_sdk import Small_LLM_Model as sdk
 from .data_checker import DataChecker
 import numpy as np
+import string
 
 class Engine():
     def __init__(self):
@@ -31,11 +32,21 @@ class Engine():
     def get_valid_tokens(self, step, result=None):
         function_names = [func["name"] for func in self.functions_definition]
         functions_tokens = []
-        parameters_name_tokens = []
+        string_tokens = []
+        number_tokens = []
+        # parameters_name_tokens = []
+        number = "0123456789."
         for func_name in function_names:
             functions_tokens.extend(self.llm.encode(func_name)[0].tolist())
-        string = "abcdefghijklmnopqrstuvwxyz"
-        number = "0123456789."
+        with open(self.llm.get_path_to_vocab_file(), "r") as vocab_data:
+            dict_vocab = json.load(vocab_data)
+            for token, ids in dict_vocab.items():
+                if token:
+                    if all(c in string.printable for c in token):
+                        string_tokens.append(ids)
+                    if all(c in number for c in token):
+                        number_tokens.append(ids)
+            
         valide_tokens = None
         if step == "name":
             valide_tokens =  functions_tokens
@@ -44,13 +55,14 @@ class Engine():
             for func in function_names:
                 if func in result:
                     func_name = func
+                    
             func_obj = [obj for obj in self.functions_definition if obj["name"] == func_name][0]
             for name, type in func_obj["parameters"].items():
                 if not f'"{name}":' in result:
                     if type["type"] == "number":
                         valide_tokens =  number
                     elif type["type"] == "string":
-                        valide_tokens =  string
+                        valide_tokens =  string_tokens
                     break
         return valide_tokens
 
@@ -84,49 +96,56 @@ class Engine():
 
         """
         return general_prompt
-
+    
+    def next_token_getter(self, logits, valid_tokens):
+        masked_tokens = np.full_like(logits, float('-inf'))
+        valid_tokens = list(dict.fromkeys(valid_tokens)) # remove duplicate
+        for token in valid_tokens:
+            masked_tokens[token] = logits[token]
+        return self.llm.decode(int(np.argmax(masked_tokens)))
     def main(self):
-        print(self.llm.encode("abcdefghijklmnopqrstuvwxyz")[0].tolist())
-        exit()
         self.checker()
+        self.get_valid_tokens("name")
         stages = ["name", "parameters"]
         tools = {
             "start": '{"name": "',
             "start_close": '",',
-            "start_params": '"parameters": ',
+            "start_params": '"parameters": {',
+            "param_middle": ',',
             "param_start": '"',
+            "param_end": '"',
             "param_close": "}"
         }
         function_names = [func["name"] for func in self.functions_definition]
-        # for i in stages:
         state = "name"
         for prompt in self.prompts:
             general_prompt = self.grep_prompt(prompt) + tools["start"]
             valide_tokens = self.get_valid_tokens(state)
             tokens = self.llm.get_logits_from_input_ids(self.llm.encode(general_prompt)[0].tolist())
-            tokens = np.array(tokens)
-            print(tokens)
-            exit()
-            for func_name in function_names:
-                if func_name in general_prompt:
-                    pass  
-                #    state = "parameters"
-            print(general_prompt)
-            exit()
-
+            # result = self.llm.decode(tokens)
+            result = self.next_token_getter(tokens, valide_tokens)
+            general_prompt += result
+            # tokens = np.array(tokens)
+            while "}}" not in result:
+                print(general_prompt)
+                for func_name in function_names:
+                    if func_name in result and state == "name":
+                        general_prompt += tools["start_close"]
+                        state = "parameters"
+                        print(general_prompt)
+                        exit()
+                    if state == "parameters":
+                        func_obj = [obj for obj in self.functions_definition if obj["name"] == func_name][0]
+                        for para in func_obj:
+                            pass
+                tokens = self.llm.get_logits_from_input_ids(self.llm.encode(general_prompt)[0].tolist())
+                result += self.next_token_getter(tokens, valide_tokens)
+                general_prompt += result
+                    
+        print(general_prompt)
 
 
         
 
 Engine1 = Engine()
 Engine1.main()
-
-
-#  valide_tokens_ids = self.get_valid_token(step)
-#                         logits = self.llm.get_logits_from_input_ids(self.llm.encode(generated_prompt)[0].tolist())
-#                         logits = np.array(logits)
-#                         masked_logits = np.full_like(logits, float('-inf'))
-#                         # i need to know in wish part i'm to restrict tokens
-#                         for token in valide_tokens_ids:
-#                                 masked_logits[token] = logits[token]
-#                         next_token_id = int(np.argmax(masked_logits))
