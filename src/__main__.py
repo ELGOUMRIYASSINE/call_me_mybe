@@ -28,43 +28,30 @@ class Engine():
             print("Somthing Went Wrong => ", e.__str__())
 
 
-    def get_valid_token(self, step, result=None, index=0):
-        vocab = self.llm.get_path_to_vocab_file()
-        valide_tokens = None
+    def get_valid_tokens(self, step, result=None):
         function_names = [func["name"] for func in self.functions_definition]
         functions_tokens = []
+        parameters_name_tokens = []
         for func_name in function_names:
             functions_tokens.extend(self.llm.encode(func_name)[0].tolist())
-        print(functions_tokens)
-        exit()
-        # functions_tokens = ["fn","_add","_numbers","_g","reet","_reverse","_string","_get","_square","_root","_sub","stitute","_with","_regex"]       
         string = "abcdefghijklmnopqrstuvwxyz"
         number = "0123456789."
+        valide_tokens = None
         if step == "name":
-            return functions_tokens
-        elif step == "parameter":
+            valide_tokens =  functions_tokens
+        elif step == "parameters":
             func_name = ""
             for func in function_names:
                 if func in result:
                     func_name = func
-            for name, type in self.functions_definition[func_name]["parameters"].items():
-                if not name in result:
-                    if type == "number":
-                        return number
-                    elif type == "string":
-                        return string
-        try:
-            tokens = None
-
-            with open(vocab, "r") as file:
-                tokens = json.load(file)
-            valide_tokens = {
-                token_id
-                for token_str, token_id in tokens.items()
-                if all(c in valid_chars for c in token_str)
-            }
-        except FileNotFoundError:
-            print("Vocab file not found!")
+            func_obj = [obj for obj in self.functions_definition if obj["name"] == func_name][0]
+            for name, type in func_obj["parameters"].items():
+                if not f'"{name}":' in result:
+                    if type["type"] == "number":
+                        valide_tokens =  number
+                    elif type["type"] == "string":
+                        valide_tokens =  string
+                    break
         return valide_tokens
 
     def functions_as_prompt(self):
@@ -99,13 +86,34 @@ class Engine():
         return general_prompt
 
     def main(self):
+        print(self.llm.encode("abcdefghijklmnopqrstuvwxyz")[0].tolist())
+        exit()
         self.checker()
         stages = ["name", "parameters"]
+        tools = {
+            "start": '{"name": "',
+            "start_close": '",',
+            "start_params": '"parameters": ',
+            "param_start": '"',
+            "param_close": "}"
+        }
         function_names = [func["name"] for func in self.functions_definition]
-        valide_tokens = self.get_valid_token("name")
-        for i in stages:
-            pass
-            # i need to restrict tokens based on the available function that i have
+        # for i in stages:
+        state = "name"
+        for prompt in self.prompts:
+            general_prompt = self.grep_prompt(prompt) + tools["start"]
+            valide_tokens = self.get_valid_tokens(state)
+            tokens = self.llm.get_logits_from_input_ids(self.llm.encode(general_prompt)[0].tolist())
+            tokens = np.array(tokens)
+            print(tokens)
+            exit()
+            for func_name in function_names:
+                if func_name in general_prompt:
+                    pass  
+                #    state = "parameters"
+            print(general_prompt)
+            exit()
+
 
 
         
