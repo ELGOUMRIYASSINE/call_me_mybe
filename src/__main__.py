@@ -28,18 +28,32 @@ class Engine():
         except (json.decoder.JSONDecodeError, FileNotFoundError) as e:
             print("Somthing Went Wrong => ", e.__str__())
 
+    def get_next_func_token(self, func_tokens, old_token=None):
+        tokens = []
+        for func in func_tokens:
+            if not old_token and not func[0] in tokens :
+                tokens.append(func[0])
+            else:
+                for i, token in enumerate(func):
+                    if token == old_token and not len(func) < i + 2:
+                        tokens.append(func[i + 1])
+                        break
+        return tokens
 
     def get_valid_tokens(self, step, result=None):
         function_names = [func["name"] for func in self.functions_definition]
         functions_tokens = []
         string_tokens = []
         number_tokens = []
-        # parameters_name_tokens = []
-        number = "0123456789."
+        number = "0123456789.,"
         for func_name in function_names:
-            functions_tokens.extend(self.llm.encode(func_name)[0].tolist())
+            functions_tokens.append(self.llm.encode(func_name)[0].tolist())
         with open(self.llm.get_path_to_vocab_file(), "r") as vocab_data:
             dict_vocab = json.load(vocab_data)
+            dict_vocab = {
+                self.llm.decode([token_id,]): token_id
+                for _,  token_id in dict_vocab.items()
+            }
             for token, ids in dict_vocab.items():
                 if token:
                     if all(c in string.printable for c in token):
@@ -60,7 +74,7 @@ class Engine():
             for name, type in func_obj["parameters"].items():
                 if not f'"{name}":' in result:
                     if type["type"] == "number":
-                        valide_tokens =  number
+                        valide_tokens =  number_tokens
                     elif type["type"] == "string":
                         valide_tokens =  string_tokens
                     break
@@ -105,12 +119,10 @@ class Engine():
         return self.llm.decode(int(np.argmax(masked_tokens)))
     def main(self):
         self.checker()
-        self.get_valid_tokens("name")
-        stages = ["name", "parameters"]
         tools = {
-            "start": '{"name": "',
+            "start": '{"name":"',
             "start_close": '",',
-            "start_params": '"parameters": {',
+            "start_params": '"parameters":{',
             "param_middle": ',',
             "param_start": '"',
             "param_end": '"',
@@ -118,31 +130,67 @@ class Engine():
         }
         function_names = [func["name"] for func in self.functions_definition]
         state = "name"
+        valid_functions_tokens = self.get_valid_tokens(state)
+        general_prompt = ""
         for prompt in self.prompts:
-            general_prompt = self.grep_prompt(prompt) + tools["start"]
-            valide_tokens = self.get_valid_tokens(state)
+            general_prompt += self.grep_prompt(prompt) + tools["start"]
+            valide_tokens = self.get_next_func_token(valid_functions_tokens)
             tokens = self.llm.get_logits_from_input_ids(self.llm.encode(general_prompt)[0].tolist())
-            # result = self.llm.decode(tokens)
-            result = self.next_token_getter(tokens, valide_tokens)
+            output = self.next_token_getter(tokens, valide_tokens)
+            result = output
             general_prompt += result
-            # tokens = np.array(tokens)
+            name_founded = False
             while "}}" not in result:
-                print(general_prompt)
                 for func_name in function_names:
                     if func_name in result and state == "name":
                         general_prompt += tools["start_close"]
                         state = "parameters"
-                        print(general_prompt)
-                        exit()
+                        name_founded = True
                     if state == "parameters":
+                        general_prompt += tools["start_params"]
                         func_obj = [obj for obj in self.functions_definition if obj["name"] == func_name][0]
-                        for para in func_obj:
-                            pass
-                tokens = self.llm.get_logits_from_input_ids(self.llm.encode(general_prompt)[0].tolist())
-                result += self.next_token_getter(tokens, valide_tokens)
-                general_prompt += result
+                        i = 0
+                        value = ""
+                        valid_tokens = self.get_valid_tokens(state, result)
+                        for para_name, para_type in func_obj["parameters"].items():
+                            # print(para_name)
+                            output = ""
+                            if i != 0:
+                                result += ","
+                                general_prompt += ","
+                            if para_type["type"] == "string":
+                                result += f'"{para_name}":"'
+                                general_prompt += f'"{para_name}":"'
+                            else:
+                                result += f'"{para_name}":'
+                                general_prompt += f'"{para_name}":'
+                            while not "," in output and not "}" in output:
+                                tokens = self.llm.get_logits_from_input_ids(self.llm.encode(general_prompt)[0].tolist())
+                                output = self.next_token_getter(tokens, valid_tokens)
+                                print(output)
+                                if not "," in output and not "}" in output:
+                                    general_prompt += output
+                                    value += output                            
+                            if para_type["type"] == "string":
+                                general_prompt += f'"'
+                                result += f'{output}"'
+                            i += 1
+                        print(general_prompt)
+                        # exit()
+                        general_prompt += "}} "
+                        result += "}}"
+                        general_prompt += "\n"
+                        print(general_prompt)
+                        # exit()
+                        break
+                if not name_founded:
+                    tokens = self.llm.get_logits_from_input_ids(self.llm.encode(general_prompt)[0].tolist())
+                    valide_tokens = self.get_next_func_token(valid_functions_tokens, self.llm.encode(output)[0].tolist()[0])
+                    output = self.next_token_getter(tokens, valide_tokens)
+                    result += output
+                    general_prompt += output
                     
-        print(general_prompt)
+            print(general_prompt)
 
 
         

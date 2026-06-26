@@ -1,0 +1,280 @@
+This is actually the central problem in constrained decoding. The solution is not to have a flat list of valid tokens, but to make the valid tokens depend on what has already been generated.
+
+Let's build it step by step.
+
+Step 1: Store encoded function names
+
+Instead of storing
+
+functions_tokens = [123, 456, 123, 789, 123, 321, 654]
+
+store
+
+encoded_functions = [
+    [123, 456],          # fn_add_numbers
+    [123, 789],          # fn_greet
+    [123, 321, 654]      # fn_reverse_string
+]
+
+Now you've preserved the order.
+
+Step 2: Keep track of generated token IDs
+
+Suppose the model has generated
+
+generated = []
+
+Initially nothing has been generated.
+
+Step 3: Compute valid next tokens
+
+Look at every function.
+
+For each function:
+
+Does generated match the beginning of the function?
+If yes, return the next token.
+
+Example:
+
+generated = []
+
+Check every function:
+
+[123,456]
+
+Matches.
+
+Next token is
+
+123
+
+Second function
+
+[123,789]
+
+Matches.
+
+Next token
+
+123
+
+Third function
+
+[123,321,654]
+
+Matches.
+
+Next token
+
+123
+
+Valid tokens are
+
+[123]
+After generating one token
+
+Suppose
+
+generated = [123]
+
+Now check every function.
+
+First:
+
+generated = [123]
+function  = [123,456]
+
+The prefix matches.
+
+Next legal token
+
+456
+
+Second
+
+[123,789]
+
+Matches.
+
+Next
+
+789
+
+Third
+
+[123,321,654]
+
+Matches.
+
+Next
+
+321
+
+So now
+
+valid_tokens = [456,789,321]
+
+Notice how much smaller the set became.
+
+Suppose model chooses
+321
+
+Now
+
+generated = [123,321]
+
+Check again.
+
+Function 1
+
+[123,456]
+
+Doesn't match.
+
+Reject.
+
+Function 2
+
+[123,789]
+
+Doesn't match.
+
+Reject.
+
+Function 3
+
+[123,321,654]
+
+Matches.
+
+Next token
+
+654
+
+Now
+
+valid_tokens = [654]
+
+There is only one possible continuation.
+
+The model cannot generate anything else.
+
+The code
+
+It becomes surprisingly simple.
+
+def get_valid_next_tokens(generated, encoded_functions):
+    valid = set()
+
+    for func in encoded_functions:
+
+        if generated == func[:len(generated)]:
+
+            if len(generated) < len(func):
+                valid.add(func[len(generated)])
+
+    return list(valid)
+Example
+encoded_functions = [
+    [123,456],
+    [123,789],
+    [123,321,654]
+]
+
+First iteration
+
+generated = []
+
+returns
+
+123
+
+Second
+
+generated = [123]
+
+returns
+
+456
+789
+321
+
+Third
+
+generated = [123,321]
+
+returns
+
+654
+
+Perfect.
+
+Even better: use a Trie
+
+This algorithm scans every function every decoding step.
+
+If you have
+
+5 functions
+
+it's fine.
+
+If you have
+
+5000 functions
+
+it becomes expensive.
+
+The standard solution is a Trie (prefix tree).
+
+It looks like
+
+root
+ │
+123
+ ├──456 (fn_add_numbers)
+ ├──789 (fn_greet)
+ └──321
+      │
+     654 (fn_reverse_string)
+
+Then
+
+generated=[]
+
+↓
+
+root
+
+Allowed
+
+123
+
+After
+
+123
+
+move to that node.
+
+Allowed
+
+456
+789
+321
+
+After
+
+123 321
+
+move again.
+
+Allowed
+
+654
+
+This is exactly how Outlines, LM Format Enforcer, and Guidance implement constrained decoding internally.
+
+Recommendation for your project
+
+Since your project only has a small number of functions (5 in your example), don't implement a Trie yet. The prefix-matching algorithm above is simple, easy to debug, and will work perfectly. Once everything else is working, you can replace it with a Trie later if you want better performance.
