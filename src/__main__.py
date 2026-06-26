@@ -40,7 +40,7 @@ class Engine():
                         break
         return tokens
 
-    def get_valid_tokens(self, step, result=None):
+    def get_valid_tokens(self):
         function_names = [func["name"] for func in self.functions_definition]
         functions_tokens = []
         string_tokens = []
@@ -60,25 +60,7 @@ class Engine():
                         string_tokens.append(ids)
                     if all(c in number for c in token):
                         number_tokens.append(ids)
-            
-        valide_tokens = None
-        if step == "name":
-            valide_tokens =  functions_tokens
-        elif step == "parameters":
-            func_name = ""
-            for func in function_names:
-                if func in result:
-                    func_name = func
-                    
-            func_obj = [obj for obj in self.functions_definition if obj["name"] == func_name][0]
-            for name, type in func_obj["parameters"].items():
-                if not f'"{name}":' in result:
-                    if type["type"] == "number":
-                        valide_tokens =  number_tokens
-                    elif type["type"] == "string":
-                        valide_tokens =  string_tokens
-                    break
-        return valide_tokens
+        return {"name": functions_tokens, "number": number_tokens, "string": string_tokens}
 
     def functions_as_prompt(self):
         func_prompt = ""
@@ -119,6 +101,7 @@ class Engine():
         return self.llm.decode(int(np.argmax(masked_tokens)))
     def main(self):
         self.checker()
+        valid_data = self.get_valid_tokens()
         tools = {
             "start": '{"name":"',
             "start_close": '",',
@@ -130,30 +113,32 @@ class Engine():
         }
         function_names = [func["name"] for func in self.functions_definition]
         state = "name"
-        valid_functions_tokens = self.get_valid_tokens(state)
+        valid_functions_tokens = valid_data["name"]
         general_prompt = ""
         for prompt in self.prompts:
             general_prompt += self.grep_prompt(prompt) + tools["start"]
+            result = tools["start"]
             valide_tokens = self.get_next_func_token(valid_functions_tokens)
             tokens = self.llm.get_logits_from_input_ids(self.llm.encode(general_prompt)[0].tolist())
             output = self.next_token_getter(tokens, valide_tokens)
-            result = output
-            general_prompt += result
+            general_prompt += output
+            result += output
             name_founded = False
             while "}}" not in result:
                 for func_name in function_names:
                     if func_name in result and state == "name":
                         general_prompt += tools["start_close"]
+                        result += tools["start_close"]
                         state = "parameters"
                         name_founded = True
                     if state == "parameters":
                         general_prompt += tools["start_params"]
+                        result += tools["start_params"]
                         func_obj = [obj for obj in self.functions_definition if obj["name"] == func_name][0]
                         i = 0
-                        value = ""
-                        valid_tokens = self.get_valid_tokens(state, result)
+                        # value = ""
                         for para_name, para_type in func_obj["parameters"].items():
-                            # print(para_name)
+                            valid_tokens = valid_data[para_type["type"]]
                             output = ""
                             if i != 0:
                                 result += ","
@@ -167,21 +152,16 @@ class Engine():
                             while not "," in output and not "}" in output:
                                 tokens = self.llm.get_logits_from_input_ids(self.llm.encode(general_prompt)[0].tolist())
                                 output = self.next_token_getter(tokens, valid_tokens)
-                                print(output)
                                 if not "," in output and not "}" in output:
                                     general_prompt += output
-                                    value += output                            
+                                    result += output                            
                             if para_type["type"] == "string":
                                 general_prompt += f'"'
                                 result += f'{output}"'
                             i += 1
-                        print(general_prompt)
-                        # exit()
                         general_prompt += "}} "
                         result += "}}"
                         general_prompt += "\n"
-                        print(general_prompt)
-                        # exit()
                         break
                 if not name_founded:
                     tokens = self.llm.get_logits_from_input_ids(self.llm.encode(general_prompt)[0].tolist())
@@ -190,7 +170,7 @@ class Engine():
                     result += output
                     general_prompt += output
                     
-            print(general_prompt)
+            print(result)   
 
 
         
