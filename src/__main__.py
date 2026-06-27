@@ -45,7 +45,7 @@ class Engine():
         functions_tokens = []
         string_tokens = []
         number_tokens = []
-        number = "0123456789.,"
+        number = "0123456789.,}"
         for func_name in function_names:
             functions_tokens.append(self.llm.encode(func_name)[0].tolist())
         with open(self.llm.get_path_to_vocab_file(), "r") as vocab_data:
@@ -89,7 +89,7 @@ class Engine():
         User request: {prompt["prompt"]}
 
         Function call:
-
+            
         """
         return general_prompt
     
@@ -112,11 +112,13 @@ class Engine():
             "param_close": "}"
         }
         function_names = [func["name"] for func in self.functions_definition]
-        state = "name"
         valid_functions_tokens = valid_data["name"]
-        general_prompt = ""
+        i = 0
+        results = []
         for prompt in self.prompts:
-            general_prompt += self.grep_prompt(prompt) + tools["start"]
+            state = "name"
+            general_prompt = self.grep_prompt(prompt) + tools["start"]
+            # print('{\n  "name": "', end="")
             result = tools["start"]
             valide_tokens = self.get_next_func_token(valid_functions_tokens)
             tokens = self.llm.get_logits_from_input_ids(self.llm.encode(general_prompt)[0].tolist())
@@ -127,41 +129,76 @@ class Engine():
             while "}}" not in result:
                 for func_name in function_names:
                     if func_name in result and state == "name":
+                        # print(f'{func_name}",\n',  end="")
+                        # exit()
                         general_prompt += tools["start_close"]
                         result += tools["start_close"]
                         state = "parameters"
                         name_founded = True
                     if state == "parameters":
+                        # print('  "parameters": {',end="")
                         general_prompt += tools["start_params"]
                         result += tools["start_params"]
+                        # print(result)
                         func_obj = [obj for obj in self.functions_definition if obj["name"] == func_name][0]
                         i = 0
-                        # value = ""
+                        value = ""
                         for para_name, para_type in func_obj["parameters"].items():
                             valid_tokens = valid_data[para_type["type"]]
                             output = ""
                             if i != 0:
                                 result += ","
+                                # print(",",end="")
                                 general_prompt += ","
                             if para_type["type"] == "string":
                                 result += f'"{para_name}":"'
+                                # print(result)
+                                # print(f'"{para_name}": "',end="")
                                 general_prompt += f'"{para_name}":"'
+                                # value += f'"{para_name}":"'
                             else:
                                 result += f'"{para_name}":'
+                                # print(result)
+                                # print(f'"{para_name}": ',end="")
                                 general_prompt += f'"{para_name}":'
-                            while not "," in output and not "}" in output:
+                            scape_detecter = False
+                            token_counter = 0
+                            while not "," in output and not "}" in output and token_counter <= 50:
                                 tokens = self.llm.get_logits_from_input_ids(self.llm.encode(general_prompt)[0].tolist())
                                 output = self.next_token_getter(tokens, valid_tokens)
+                                token_counter += 1
                                 if not "," in output and not "}" in output:
+                                    # print(output)
+                                    if scape_detecter:
+                                        if output != '"':
+                                            general_prompt += "\\"
+                                            result += "\\"
+                                        scape_detecter = False
+                                    if output == "\\":
+                                        scape_detecter = True
                                     general_prompt += output
-                                    result += output                            
+                                    result += output
+
+                                    # print(result)
+                                    value += output                     
+                                # break
+                                    # print(output,end="")
+                                # print("from here => ",value)
                             if para_type["type"] == "string":
                                 general_prompt += f'"'
-                                result += f'{output}"'
+                                result += f'"'
+                                # print(result)
+                                # exit()
+                                # print(result)
+                                value += '"'
                             i += 1
-                        general_prompt += "}} "
+                            # print(f"{value}",end="")
+                        general_prompt += "}}"
                         result += "}}"
+
                         general_prompt += "\n"
+                        # print(result)
+                        # print("}\n}")
                         break
                 if not name_founded:
                     tokens = self.llm.get_logits_from_input_ids(self.llm.encode(general_prompt)[0].tolist())
@@ -169,9 +206,11 @@ class Engine():
                     output = self.next_token_getter(tokens, valide_tokens)
                     result += output
                     general_prompt += output
-                    
-            print(result)   
-
+            # print(result)
+            results.append(json.loads(result))            
+            i += 1
+        with open("result.json", "a") as file:
+            json.dump(results, file, indent=4)
 
         
 
