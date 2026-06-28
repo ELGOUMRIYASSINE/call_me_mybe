@@ -1,221 +1,259 @@
-import json
-import sys
-from llm_sdk import Small_LLM_Model as sdk
-from .data_checker import DataChecker
-import numpy as np
-import string
+"""Generate function-call JSON results from prompts."""
 
-class Engine():
+import json
+import string
+import sys
+
+import numpy as np
+
+from llm_sdk import Small_LLM_Model as sdk
+
+from .data_checker import DataChecker
+
+
+class Engine:
+    """Run the model and build one function call per user prompt."""
+
     def __init__(self):
         self.data_source = {}
         self.prompts = {}
         self.functions_definition = {}
-        self.statics = ['{"prompt":', ',"name": ', ',"parameters": ', '},']
         self.llm = sdk()
 
     def checker(self) -> None:
+        """Load the input files and validate their content."""
         try:
-            if len(sys.argv) > 1:
-                checker = DataChecker(sys.argv)
-                self.data_source = checker.check()
-                checker.valid_json()
-                self.functions_definition = checker.func_def_final
-                self.prompts = checker.inputes_final
-            else:
-                self.data_source["functions_definition"] = "data/input/functions_definition.json"
-                self.data_source["input"] = "data/input/function_calling_tests.json"
-                self.data_source["output"] = "data/output/function_calls.json"
-        except (json.decoder.JSONDecodeError, FileNotFoundError) as e:
-            print("Somthing Went Wrong => ", e.__str__())
+            checker = DataChecker(sys.argv)
+            self.data_source = checker.check()
+            checker.valid_json()
+            self.functions_definition = checker.func_def_final
+            self.prompts = checker.inputes_final
+        except (json.JSONDecodeError, FileNotFoundError):
+            print("Somthing Went Wrong With Your provided file or default files")
+            raise SystemExit(1)
 
     def get_next_func_token(self, func_tokens, old_token=None):
+        """Return the next valid token ids for function names."""
         tokens = []
         for func in func_tokens:
-            if not old_token and not func[0] in tokens :
-                tokens.append(func[0])
-            else:
-                for i, token in enumerate(func):
-                    if token == old_token and not len(func) < i + 2:
-                        tokens.append(func[i + 1])
-                        break
+            if old_token is None:
+                first_token = func[0]
+                if first_token not in tokens:
+                    tokens.append(first_token)
+                continue
+
+            for index, token in enumerate(func[:-1]):
+                if token == old_token:
+                    tokens.append(func[index + 1])
+                    break
         return tokens
 
     def get_valid_tokens(self):
+        """Split the vocabulary into name, string, and number tokens."""
         function_names = [func["name"] for func in self.functions_definition]
-        functions_tokens = []
+        function_tokens = []
         string_tokens = []
         number_tokens = []
-        number = "0123456789.,}"
+        number_chars = set("0123456789.,}-")
+
         for func_name in function_names:
-            functions_tokens.append(self.llm.encode(func_name)[0].tolist())
+            function_tokens.append(self.llm.encode(func_name)[0].tolist())
+
         with open(self.llm.get_path_to_vocab_file(), "r") as vocab_data:
-            dict_vocab = json.load(vocab_data)
-            dict_vocab = {
-                self.llm.decode([token_id,]): token_id
-                for _,  token_id in dict_vocab.items()
+            vocab = json.load(vocab_data)
+            decoded_vocab = {
+                self.llm.decode([token_id]): token_id
+                for token_id in vocab.values()
             }
-            for token, ids in dict_vocab.items():
-                if token:
-                    if all(c in string.printable for c in token):
-                        string_tokens.append(ids)
-                    if all(c in number for c in token):
-                        number_tokens.append(ids)
-        return {"name": functions_tokens, "number": number_tokens, "string": string_tokens, "integer": number_tokens,}
+
+            for token, token_id in decoded_vocab.items():
+                if not token:
+                    continue
+                if all(character in string.printable for character in token):
+                    string_tokens.append(token_id)
+                if all(character in number_chars for character in token):
+                    number_tokens.append(token_id)
+
+        return {
+            "name": function_tokens,
+            "number": number_tokens,
+            "string": string_tokens,
+            "integer": number_tokens,
+        }
 
     def functions_as_prompt(self):
-        func_prompt = ""
+        """Turn the function schema into a readable list for the prompt."""
+        lines = []
         for function in self.functions_definition:
-            func_prompt += f"- {function['name']}("
-            i = 0
-            for p_name, p_type in function["parameters"].items():
-                if i != 0:
-                    func_prompt += ", "
-                func_prompt += f"{p_name}:{p_type}"
-                i += 1
-            func_prompt += f"): {function['description']} \n"
-        return func_prompt
-    
+            parameters = ", ".join(
+                f"{name}:{spec['type']}" for name, spec in function["parameters"].items()
+            )
+            lines.append(
+                f"- {function['name']}({parameters}): {function['description']}"
+            )
+        return "\n".join(lines)
+
     def grep_prompt(self, prompt):
-        general_prompt = ""
-        example = '{"name": "<function_name>", "parameters": {"<param1>": <value1>, "<param2>": <value2>}}'
-        general_prompt = f"""
-        You are a function calling assistant. Your task is to analyze a user request and respond with a single JSON object that calls the correct function with the correct arguments.
-        Available functions:
-        {self.functions_as_prompt()}
-        You must respond using exactly this JSON format and nothing else:
-        {example}
-        Do not include any explanation, extra text, or formatting outside the JSON object.
+        """Build the instruction prompt for one user request."""
+        example = (
+            '{"name": "<function_name>", "parameters": '
+            '{"<param1>": <value1>, "<param2>": <value2>}}'
+        )
+        return (
+            "You are a function calling assistant. Your task is to analyze "
+            "a user request and respond with a single JSON object that calls "
+            "the correct function with the correct arguments.\n"
+            "Available functions:\n"
+            f"{self.functions_as_prompt()}\n"
+            "You must respond using exactly this JSON format and nothing else:\n"
+            f"{example}\n"
+            "Do not include any explanation, extra text, or formatting "
+            "outside the JSON object.\n\n"
+            f'User request: {prompt["prompt"]}\n\n'
+            "Function call:\n"
+        )
 
-        User request: {prompt["prompt"]}
-
-        Function call:
-            
-        """
-        return general_prompt
-    
     def next_token_getter(self, logits, valid_tokens):
-        masked_tokens = np.full_like(logits, float('-inf'))
-        valid_tokens = list(dict.fromkeys(valid_tokens)) # remove duplicate
+        """Pick the best token from the allowed token ids."""
+        masked_tokens = np.full_like(logits, float("-inf"))
+        valid_tokens = list(dict.fromkeys(valid_tokens))
         for token in valid_tokens:
             masked_tokens[token] = logits[token]
         return self.llm.decode(int(np.argmax(masked_tokens)))
+
     def state_printer(self, text):
+        """Print a JSON-like string with a simple indentation style."""
         indent = 0
-        for chr in text:
-            if chr == "{":
+        for character in text:
+            if character == "{":
                 sys.stdout.write("{\n")
                 indent += 1
                 sys.stdout.write("   " * indent)
-            elif chr == "}":
+            elif character == "}":
                 sys.stdout.write("\n")
                 indent -= 1
                 sys.stdout.write("   " * indent)
                 sys.stdout.write("}")
-            elif chr == ",":
+            elif character == ",":
                 sys.stdout.write(",\n")
                 sys.stdout.write("   " * indent)
             else:
-                sys.stdout.write(chr)
+                sys.stdout.write(character)
+
     def main(self):
+        """Generate the final JSON output file."""
         self.checker()
         valid_data = self.get_valid_tokens()
         tools = {
             "start": '"name":"',
             "start_close": '",',
             "start_params": '"parameters":{',
-            "param_middle": ',',
-            "param_start": '"',
-            "param_end": '"',
-            "param_close": "}"
         }
         function_names = [func["name"] for func in self.functions_definition]
         valid_functions_tokens = valid_data["name"]
-        i = 0
         results = []
+
         for prompt in self.prompts:
             state = "name"
             general_prompt = self.grep_prompt(prompt) + tools["start"]
-            prmp =  prompt["prompt"].replace('"', '\\"')
-            result = "{"+ f'"prompt": "{prmp}",' + tools["start"]
-            self.state_printer(result)
-            valide_tokens = self.get_next_func_token(valid_functions_tokens)
-            tokens = self.llm.get_logits_from_input_ids(self.llm.encode(general_prompt)[0].tolist())
-            output = self.next_token_getter(tokens, valide_tokens)
+            prompt_text = prompt["prompt"].replace('"', '\\"')
+            result = '{' + f'"prompt": "{prompt_text}",' + tools["start"]
+            valid_tokens = self.get_next_func_token(valid_functions_tokens)
+            tokens = self.llm.get_logits_from_input_ids(
+                self.llm.encode(general_prompt)[0].tolist()
+            )
+            output = self.next_token_getter(tokens, valid_tokens)
             general_prompt += output
             result += output
-            self.state_printer(output)
-            name_founded = False
+            name_found = False
+
             while "}}" not in result:
-                for func_name in function_names:
-                    if func_name in result and state == "name":
+                for function_name in function_names:
+                    if function_name in result and state == "name":
                         general_prompt += tools["start_close"]
                         result += tools["start_close"]
-                        self.state_printer(tools["start_close"])
                         state = "parameters"
-                        name_founded = True
+                        name_found = True
+
                     if state == "parameters":
                         general_prompt += tools["start_params"]
                         result += tools["start_params"]
-                        self.state_printer(tools["start_params"])                        
-                        func_obj = [obj for obj in self.functions_definition if obj["name"] == func_name][0]
-                        i = 0
-                        value = ""
-                        for para_name, para_type in func_obj["parameters"].items():
-                            valid_tokens = valid_data[para_type["type"]]
+                        func_obj = [
+                            obj
+                            for obj in self.functions_definition
+                            if obj["name"] == function_name
+                        ][0]
+                        for index, (param_name, param_type) in enumerate(
+                            func_obj["parameters"].items()
+                        ):
+                            valid_tokens = valid_data[param_type["type"]]
                             output = ""
-                            if i != 0:
+                            if index != 0:
                                 result += ","
                                 general_prompt += ","
-                            if para_type["type"] == "string":
-                                result += f'"{para_name}":"'
-                                general_prompt += f'"{para_name}":"'
+                            if param_type["type"] == "string":
+                                result += f'"{param_name}":"'
+                                general_prompt += f'"{param_name}":"'
                             else:
-                                result += f'"{para_name}":'
-                                general_prompt += f'"{para_name}":'
-                            scape_detecter = False
+                                result += f'"{param_name}":'
+                                general_prompt += f'"{param_name}":'
+
+                            escape_detected = False
                             token_counter = 0
-                            while not "," in output and not "}" in output and token_counter <= 50:
-                                tokens = self.llm.get_logits_from_input_ids(self.llm.encode(general_prompt)[0].tolist())
+                            while (
+                                "," not in output
+                                and "}" not in output
+                                and token_counter <= 50
+                            ):
+                                tokens = self.llm.get_logits_from_input_ids(
+                                    self.llm.encode(general_prompt)[0].tolist()
+                                )
                                 output = self.next_token_getter(tokens, valid_tokens)
                                 token_counter += 1
-                                if not "," in output and not "}" in output:
+                                if "," not in output and "}" not in output:
                                     if '"' in output:
                                         result += "\\"
                                         general_prompt += "\\"
-                                    if scape_detecter:
+                                    if escape_detected:
                                         if output != '"':
                                             general_prompt += "\\"
                                             result += "\\"
-                                        scape_detecter = False
+                                        escape_detected = False
                                     if output == "\\":
-                                        scape_detecter = True
+                                        escape_detected = True
                                     general_prompt += output
                                     result += output
-                            if para_type["type"] == "string":
-                                general_prompt += f'"'
-                                result += f'"'
-                            elif para_type["type"] == "number" and not "." in result:
+
+                            if param_type["type"] == "string":
+                                general_prompt += '"'
+                                result += '"'
+                            elif param_type["type"] == "number" and "." not in result:
                                 result += ".0"
                                 general_prompt += ".0"
-                                value += '"'
-                            i += 1
+
                         general_prompt += "}}"
                         result += "}}"
                         general_prompt += "\n"
                         break
-                if not name_founded:
-                    tokens = self.llm.get_logits_from_input_ids(self.llm.encode(general_prompt)[0].tolist())
-                    valide_tokens = self.get_next_func_token(valid_functions_tokens, self.llm.encode(output)[0].tolist()[0])
-                    output = self.next_token_getter(tokens, valide_tokens)
+
+                if not name_found:
+                    tokens = self.llm.get_logits_from_input_ids(
+                        self.llm.encode(general_prompt)[0].tolist()
+                    )
+                    valid_tokens = self.get_next_func_token(
+                        valid_functions_tokens,
+                        self.llm.encode(output)[0].tolist()[0],
+                    )
+                    output = self.next_token_getter(tokens, valid_tokens)
                     result += output
                     general_prompt += output
+
             self.state_printer(result)
-            results.append(json.loads(result))            
-            i += 1
-        with open("data/output/result.json", "w") as file:
+            results.append(json.loads(result))
+
+        with open(self.data_source["output"], "w") as file:
             json.dump(results, file, indent=4)
 
-        
 
-Engine1 = Engine()
-Engine1.main()
+if __name__ == "__main__":
+    Engine().main()
