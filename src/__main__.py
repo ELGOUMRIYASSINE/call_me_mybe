@@ -3,11 +3,9 @@
 import json
 import string
 import sys
-
+from pathlib import Path
 import numpy as np
-
 from llm_sdk import Small_LLM_Model as sdk
-
 from .data_checker import DataChecker
 
 
@@ -157,7 +155,14 @@ class Engine:
             state = "name"
             general_prompt = self.grep_prompt(prompt) + tools["start"]
             prompt_text = prompt["prompt"].replace('"', '\\"')
-            result = '{' + f'"prompt": "{prompt_text}",' + tools["start"]
+            result = (
+                '{'
+                + '"prompt": '
+                + json.dumps(prompt_text)
+                + ','
+                + tools["start"]
+            )
+            # result = '{' + f'"prompt": "{prompt_text}",' + tools["start"]
             valid_tokens = self.get_next_func_token(valid_functions_tokens)
             tokens = self.llm.get_logits_from_input_ids(
                 self.llm.encode(general_prompt)[0].tolist()
@@ -251,6 +256,9 @@ class Engine:
             self.state_printer(result)
             results.append(json.loads(result))
 
+        # create missing directories
+        path = Path(self.data_source["output"])
+        path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.data_source["output"], "w") as file:
             json.dump(results, file, indent=4)
 
