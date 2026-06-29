@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import List
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -23,19 +23,19 @@ class inputFormat(BaseModel):
 class DataChecker:
     """Load file paths and validate the JSON fixtures."""
 
-    def __init__(self, args: List):
+    def __init__(self, args: list[str]) -> None:
         self.args = args
-        self.data_source = {}
-        self.tools = ["--functions_definition", "--input", "--output"]
-        self.defauls = {
+        self.data_source: dict[str, str] = {}
+        self.tools: list[str] = ["--functions_definition", "--input", "--output"]
+        self.defauls: dict[str, str] = {
             "--functions_definition": "data/input/functions_definition.json",
             "--input": "data/input/function_calling_tests.json",
             "--output": "data/output/result.json"
         }
-        self.inputes_final = []
-        self.func_def_final = []
+        self.inputes_final: list[dict[str, Any]] = []
+        self.func_def_final: list[dict[str, Any]] = []
 
-    def check(self):
+    def check(self) -> dict[str, str]:
         if len(self.args) > 1:
             for tool in self.tools:
                 if tool in self.args:
@@ -60,7 +60,7 @@ class DataChecker:
                 self.data_source[tool.replace("-", "")] = self.defauls[tool]
         return self.data_source
 
-    def valid_json(self):
+    def valid_json(self) -> None:
         if (
             not Path(self.data_source["functions_definition"]).is_file()
             or not Path(self.data_source["input"]).is_file()
@@ -69,7 +69,7 @@ class DataChecker:
                 "[Error]: functions_definitions or function_calling_tests "
                 "not provided"
             )
-            exit()
+            raise SystemExit(1)
 
         with open(self.data_source["functions_definition"], "r") as func_def, open(
             self.data_source["input"], "r"

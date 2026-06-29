@@ -4,18 +4,50 @@ import json
 import string
 import sys
 from pathlib import Path
+from typing import Any, Literal, TypedDict, cast
+
 import numpy as np
 from llm_sdk import Small_LLM_Model as sdk
+
 from .data_checker import DataChecker
+
+
+class ParameterSpec(TypedDict):
+    """Type for one parameter description in function definitions."""
+
+    type: Literal["string", "number", "integer"]
+
+
+class FunctionDefinition(TypedDict):
+    """Type for one function definition item loaded from JSON."""
+
+    name: str
+    description: str
+    parameters: dict[str, ParameterSpec]
+
+
+class PromptItem(TypedDict):
+    """Type for one prompt item loaded from JSON."""
+
+    prompt: str
+
+
+class ValidTokenData(TypedDict):
+    """Collections of allowed tokens by decoding state."""
+
+    name: list[list[int]]
+    number: list[int]
+    string: list[int]
+    integer: list[int]
 
 
 class Engine:
     """Run the model and build one function call per user prompt."""
 
-    def __init__(self):
-        self.data_source = {}
-        self.prompts = {}
-        self.functions_definition = {}
+    def __init__(self) -> None:
+        self.data_source: dict[str, str] = {}
+        self.prompts: list[PromptItem] = []
+        self.functions_definition: list[FunctionDefinition] = []
         self.llm = sdk()
 
     def checker(self) -> None:
@@ -24,15 +56,21 @@ class Engine:
             checker = DataChecker(sys.argv)
             self.data_source = checker.check()
             checker.valid_json()
-            self.functions_definition = checker.func_def_final
-            self.prompts = checker.inputes_final
+            self.functions_definition = cast(
+                list[FunctionDefinition], checker.func_def_final
+            )
+            self.prompts = cast(list[PromptItem], checker.inputes_final)
         except (json.JSONDecodeError, FileNotFoundError):
             print("Somthing Went Wrong With Your provided file or default files")
             raise SystemExit(1)
 
-    def get_next_func_token(self, func_tokens, old_token=None):
+    def get_next_func_token(
+        self,
+        func_tokens: list[list[int]],
+        old_token: int | None = None,
+    ) -> list[int]:
         """Return the next valid token ids for function names."""
-        tokens = []
+        tokens: list[int] = []
         for func in func_tokens:
             if old_token is None:
                 first_token = func[0]
@@ -46,12 +84,12 @@ class Engine:
                     break
         return tokens
 
-    def get_valid_tokens(self):
+    def get_valid_tokens(self) -> ValidTokenData:
         """Split the vocabulary into name, string, and number tokens."""
         function_names = [func["name"] for func in self.functions_definition]
-        function_tokens = []
-        string_tokens = []
-        number_tokens = []
+        function_tokens: list[list[int]] = []
+        string_tokens: list[int] = []
+        number_tokens: list[int] = []
         number_chars = set("0123456789.,}-")
 
         for func_name in function_names:
@@ -62,6 +100,7 @@ class Engine:
             decoded_vocab = {
                 self.llm.decode([token_id]): token_id
                 for token_id in vocab.values()
+                if isinstance(token_id, int)
             }
 
             for token, token_id in decoded_vocab.items():
@@ -79,7 +118,7 @@ class Engine:
             "integer": number_tokens,
         }
 
-    def functions_as_prompt(self):
+    def functions_as_prompt(self) -> str:
         """Turn the function schema into a readable list for the prompt."""
         lines = []
         for function in self.functions_definition:
@@ -91,7 +130,7 @@ class Engine:
             )
         return "\n".join(lines)
 
-    def grep_prompt(self, prompt):
+    def grep_prompt(self, prompt: PromptItem) -> str:
         """Build the instruction prompt for one user request."""
         example = (
             '{"name": "<function_name>", "parameters": '
@@ -111,15 +150,15 @@ class Engine:
             "Function call:\n"
         )
 
-    def next_token_getter(self, logits, valid_tokens):
+    def next_token_getter(self, logits: list[float], valid_tokens: list[int]) -> Any:
         """Pick the best token from the allowed token ids."""
         masked_tokens = np.full_like(logits, float("-inf"))
         valid_tokens = list(dict.fromkeys(valid_tokens))
         for token in valid_tokens:
             masked_tokens[token] = logits[token]
-        return self.llm.decode(int(np.argmax(masked_tokens)))
+        return self.llm.decode([int(np.argmax(masked_tokens))])
 
-    def state_printer(self, text):
+    def state_printer(self, text: str) -> None:
         """Print a JSON-like string with a simple indentation style."""
         indent = 0
         for character in text:
@@ -138,7 +177,7 @@ class Engine:
             else:
                 sys.stdout.write(character)
 
-    def main(self):
+    def main(self) -> None:
         """Generate the final JSON output file."""
         self.checker()
         valid_data = self.get_valid_tokens()
@@ -149,7 +188,7 @@ class Engine:
         }
         function_names = [func["name"] for func in self.functions_definition]
         valid_functions_tokens = valid_data["name"]
-        results = []
+        results: list[dict[str, Any]] = []
 
         for prompt in self.prompts:
             state = "name"
