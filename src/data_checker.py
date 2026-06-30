@@ -31,6 +31,7 @@ class DataChecker:
             "--functions_definition": "data/input/functions_definition.json",
             "--input": "data/input/function_calling_tests.json",
             "--output": "data/output/result.json",
+            "--model": ""
             
         }
         self.inputes_final: list[dict[str, Any]] = []
@@ -59,7 +60,7 @@ class DataChecker:
                             raise SystemExit(1)
 
         for tool in self.tools:
-            if tool not in self.data_source:
+            if tool.replace("-", "") not in self.data_source:
                 self.data_source[tool.replace("-", "")] = self.defauls[tool]
         return self.data_source
 
