@@ -30,7 +30,8 @@ class DataChecker:
         self.defauls: dict[str, str] = {
             "--functions_definition": "data/input/functions_definition.json",
             "--input": "data/input/function_calling_tests.json",
-            "--output": "data/output/result.json"
+            "--output": "data/output/result.json",
+            
         }
         self.inputes_final: list[dict[str, Any]] = []
         self.func_def_final: list[dict[str, Any]] = []
@@ -50,15 +51,46 @@ class DataChecker:
                     if next_value:
                         if Path(next_value).is_file():
                             self.data_source[tool.replace("-", "")] = next_value
+                        elif tool == "--output":
+                            path = Path(next_value)
+                            path.parent.mkdir(parents=True, exist_ok=True)
                         else:
-                            raise FileNotFoundError(
-                                f"{next_value} this file does not existe"
-                            )
+                            print(f"{next_value} this file does not existe | or field to create")
+                            raise SystemExit(1)
 
         for tool in self.tools:
             if tool not in self.data_source:
                 self.data_source[tool.replace("-", "")] = self.defauls[tool]
         return self.data_source
+
+    @staticmethod
+    def escape_detecter(output) -> str:
+        valid_ecapes = ['"', "\\"]
+        if output == "\\":
+            return output + "\\"
+        i = 0
+        while i < len(output):
+            if i + 1 < len(output):
+                next_index = output[i + 1]
+            if output[i] == "\\":
+                if not next_index in valid_ecapes and not output[i - 1] == "\\":
+                    output = output[:i] + "\\" + output[i:]
+                else:
+                    i += 1
+            elif output[i] == "\"":
+                j = i - 1
+                slashes_count = 0
+                while j >= 0:
+                    if output[j] == "\\":
+                        slashes_count += 1
+                    j -= 1
+                if slashes_count % 2 == 0:
+                    output = output[:i] + "\\" + output[i:]
+            i += 1
+        return output
+
+                
+
 
     def valid_json(self) -> None:
         if (

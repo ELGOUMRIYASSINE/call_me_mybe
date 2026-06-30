@@ -5,7 +5,6 @@ import string
 import sys
 from pathlib import Path
 from typing import Any, Literal, TypedDict, cast
-
 import numpy as np
 from llm_sdk import Small_LLM_Model as sdk
 
@@ -255,16 +254,18 @@ class Engine:
                                 output = self.next_token_getter(tokens, valid_tokens)
                                 token_counter += 1
                                 if "," not in output and "}" not in output:
-                                    if '"' in output:
-                                        result += "\\"
-                                        general_prompt += "\\"
-                                    if escape_detected:
-                                        if output != '"':
-                                            general_prompt += "\\"
-                                            result += "\\"
-                                        escape_detected = False
-                                    if output == "\\":
-                                        escape_detected = True
+                                    # print(output, f"state => {escape_detected}")
+                                    # if '"' in output:
+                                    #     result += "\\"
+                                    #     general_prompt += "\\"
+                                    # elif escape_detected and not output == "\\":
+                                    #     # if output != '"':
+                                    #     general_prompt += "\\"
+                                    #     result += "\\"
+                                    #     escape_detected = False
+                                    # if output == "\\":
+                                    #     escape_detected = True
+                                    output = DataChecker.escape_detecter(output)
                                     general_prompt += output
                                     result += output
 
@@ -296,8 +297,6 @@ class Engine:
             results.append(json.loads(result))
 
         # create missing directories
-        path = Path(self.data_source["output"])
-        path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.data_source["output"], "w") as file:
             json.dump(results, file, indent=4)
 
