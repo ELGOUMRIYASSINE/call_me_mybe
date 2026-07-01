@@ -2,22 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel
-
-
-class func_definition(BaseModel):
-    """Describe one callable function from the input schema."""
-
-    name: str
-    description: str
-    parameters: dict
-    returns: dict
-
-
-class inputFormat(BaseModel):
-    """Describe one user prompt from the input file."""
-
-    prompt: str
+from .pydantic_rules import inputFormat, func_definition
 
 
 class DataChecker:
@@ -26,12 +11,17 @@ class DataChecker:
     def __init__(self, args: list[str]) -> None:
         self.args = args
         self.data_source: dict[str, str] = {}
-        self.tools: list[str] = ["--functions_definition", "--input", "--output", "--model"]
+        self.tools: list[str] = [
+            "--functions_definition",
+            "--input",
+            "--output",
+            "--model",
+        ]
         self.defauls: dict[str, str] = {
             "--functions_definition": "data/input/functions_definition.json",
             "--input": "data/input/function_calling_tests.json",
             "--output": "data/output/result.json",
-            "--model": "Qwen/Qwen3-0.6B"
+            "--model": "Qwen/Qwen3-0.6B",
         }
         self.inputes_final: list[dict[str, Any]] = []
         self.func_def_final: list[dict[str, Any]] = []
@@ -49,15 +39,28 @@ class DataChecker:
                         None,
                     )
                     if next_value:
-                        if Path(next_value).is_file() and not tool == "--model":
-                            self.data_source[tool.replace("-", "")] = next_value
+                        if (
+                            Path(next_value).is_file()
+                            and not tool == "--model"
+                        ):
+                            self.data_source[tool.replace("-", "")] = (
+                                next_value
+                            )
                         elif tool == "--model":
-                            self.data_source[tool.replace("-", "")] = next_value                          
+                            self.data_source[tool.replace("-", "")] = (
+                                next_value
+                            )
                         elif tool == "--output":
                             path = Path(next_value)
                             path.parent.mkdir(parents=True, exist_ok=True)
+                            self.data_source[tool.replace("-", "")] = (
+                                next_value
+                            )
                         else:
-                            print(f"{next_value} this file does not existe | or field to create")
+                            print(
+                                f"{next_value} this file does not existe "
+                                "| or field to create"
+                            )
                             raise SystemExit(1)
 
         for tool in self.tools:
@@ -66,7 +69,7 @@ class DataChecker:
         return self.data_source
 
     @staticmethod
-    def escape_detecter(output) -> str:
+    def escape_detecter(output: str) -> str:
         valid_ecapes = ['"', "\\"]
         if output == "\\":
             return output + "\\"
@@ -75,11 +78,14 @@ class DataChecker:
             if i + 1 < len(output):
                 next_index = output[i + 1]
             if output[i] == "\\":
-                if not next_index in valid_ecapes and not output[i - 1] == "\\":
+                if (
+                    next_index not in valid_ecapes
+                    and not output[i - 1] == "\\"
+                ):
                     output = output[:i] + "\\" + output[i:]
                 else:
                     i += 1
-            elif output[i] == "\"":
+            elif output[i] == '"':
                 j = i - 1
                 slashes_count = 0
                 while j >= 0:
@@ -90,9 +96,6 @@ class DataChecker:
                     output = output[:i] + "\\" + output[i:]
             i += 1
         return output
-
-                
-
 
     def valid_json(self) -> None:
         if (
@@ -105,9 +108,10 @@ class DataChecker:
             )
             raise SystemExit(1)
 
-        with open(self.data_source["functions_definition"], "r") as func_def, open(
-            self.data_source["input"], "r"
-        ) as inputs:
+        with (
+            open(self.data_source["functions_definition"], "r") as func_def,
+            open(self.data_source["input"], "r") as inputs,
+        ):
             try:
                 self.func_def_final = json.load(func_def)
                 self.inputes_final = json.load(inputs)
