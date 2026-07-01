@@ -82,12 +82,11 @@ class Engine:
         """Generate the final JSON output file."""
         self.checker()
         llm_obj = self.llm
-        print(self.functions_definition)
-        exit()
+        if llm_obj is None:
+            raise SystemExit(1)
         functions_definition_raw = [
             function.model_dump() for function in self.functions_definition
         ]
-        print(functions_definition_raw)
         valid_data = get_valid_tokens(llm_obj, functions_definition_raw)
         tools = {
             "start": '"name":"',
@@ -99,7 +98,6 @@ class Engine:
         results: list[dict[str, Any]] = []
 
         for prompt in self.prompts:
-            print()
             if not prompt.prompt:
                 print("Warning: empty string founded (passed)")
                 continue

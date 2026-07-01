@@ -1,97 +1,99 @@
 # call_me_mybe
 
-This project turns a natural-language prompt into a single function-call JSON object. It uses a local language model, but the application logic is responsible for constraining the output so the result matches the function schema instead of producing free-form text.
+This project converts natural-language prompts into structured function-call JSON using constrained decoding. Instead of trusting the model to freely emit valid JSON, the code limits generation to token sets that match function names and parameter types.
 
-The repository is intentionally small:
+## Current repository structure
 
-- `src/__main__.py` contains the generation engine.
-- `src/data_checker.py` validates input files and command-line arguments.
-- `data/input/functions_definition.json` defines the available functions.
-- `data/input/function_calling_tests.json` provides the prompts to solve.
-- `data/output/result.json` is the generated output file.
+```text
+.
+├── makefile
+├── pyproject.toml
+├── llm_sdk/
+│   └── __init__.py
+├── src/
+│   ├── __main__.py
+│   ├── data_checker.py
+│   ├── constrained_tools.py
+│   └── pydantic_rules.py
+└── data/
+		├── input/
+		│   ├── functions_definition.json
+		│   └── function_calling_tests.json
+		└── output/
+				└── result.json
+```
+
+## Module responsibilities
+
+- `src/__main__.py`
+	- Orchestrates loading, prompt construction, constrained token generation, and writing output.
+- `src/data_checker.py`
+	- Parses CLI flags, applies default paths, validates JSON files, and checks schema compatibility.
+- `src/constrained_tools.py`
+	- Builds valid token pools and applies greedy masked decoding helpers.
+- `src/pydantic_rules.py`
+	- Defines Pydantic models for function definitions, prompt items, and parameter type constraints.
+- `llm_sdk/__init__.py`
+	- Provides `Small_LLM_Model`, a Hugging Face based wrapper used by the app.
 
 ## What the program does
 
-For each prompt in the input file, the program asks the model to choose one function from the available schema and then builds the JSON call one token at a time. Instead of trusting the model to emit valid JSON on its own, the code restricts each generation step to a set of allowed tokens derived from:
+For each prompt from `data/input/function_calling_tests.json`, the engine:
 
-- the available function names,
-- the declared parameter types,
-- and the vocabulary exposed by the model.
+1. Loads function definitions from `data/input/functions_definition.json`.
+2. Validates both input files against expected schema.
+3. Loads the configured local model (`Qwen/Qwen3-0.6B` by default).
+4. Builds a strict instruction prompt that asks for one JSON function call.
+5. Computes allowed token sets for:
+	 - function names,
+	 - string values,
+	 - number/integer values.
+6. Generates tokens greedily while masking all tokens outside the currently valid set.
+7. Writes all generated results to `data/output/result.json`.
 
-This is the core constrained-decoding idea of the project.
+## Constrained decoding overview
 
-## Algorithm
+- Function selection is constrained using tokenized function names from the schema.
+- Parameter values are constrained by declared type:
+	- `string` -> printable tokens,
+	- `number` -> numeric-like tokens,
+	- `integer` -> currently reuses number token pool.
+- Output JSON is assembled incrementally and finalized per prompt.
 
-The generation flow is:
+This approach is heuristic, lightweight, and designed for this project's fixed function-call output format.
 
-1. Load the function definitions and prompts from JSON.
-2. Validate that the input files exist and have the expected structure.
-3. Load the local LLM specified by `--model` or by the default model.
-4. Build a prompt that lists all available functions and forces a JSON-only answer.
-5. Encode the function names and inspect the model vocabulary to compute allowed token sets.
-6. Generate the output in a state machine:
-	 - first choose the function name,
-	 - then switch to the parameter object,
-	 - then generate each parameter value according to its declared type (string, number, integer => only suported types),
-	 - then close the JSON object.
-7. Collect one result per prompt and write the final list to the output file.
+## Algorithm walkthrough
 
-The decoder does not sample freely. At each step it masks out invalid tokens and keeps only the tokens that can continue the expected JSON structure. The next token is selected greedily from that restricted set.
+The generation loop behaves like a small state machine with two phases:
 
-## Constrained decoding strategy
+1. Function name phase
+	- Start building output with `{` + `"prompt"` + `"name":"`.
+	- Build valid first tokens from all allowed function names.
+	- Select the next token greedily, but only from the currently allowed set.
+	- Keep extending the function name token by token until one full function name is recognized.
 
-The project uses a practical form of constrained decoding rather than a full symbolic parser.
+2. Parameters phase
+	- Append `"parameters":{`.
+	- Resolve the selected function schema and iterate through its parameters in order.
+	- For each parameter:
+	  - Choose the token pool from type (`string`, `number`, `integer`).
+	  - Generate value tokens greedily from that restricted pool.
+	  - Stop parameter generation on `,` or `}` boundary tokens (or after a token cap).
+	  - Escape string content when needed so JSON stays parseable.
+	- Close JSON object with `}}` and parse it into a Python dictionary.
 
-### Function-name constraint
-
-The code tokenizes every function name from the schema and keeps only tokens that can continue one of those names. This makes the first generated field effectively choose the target function.
-
-### Type constraint
-
-Parameter values are generated with token filters based on the declared type:
-
-- `string`: tokens that decode to printable characters,
-- `number`: tokens that look like numeric text and punctuation used in numeric literals,
-- `integer`: currently handled with the same token pool as `number`.
-
-This is a heuristic, not a formal grammar. It works well enough for the current JSON fixtures, but it is still dependent on the model vocabulary and on the output shape expected by the code.
-
-### JSON assembly
-
-The JSON result is built incrementally as a string while the model generates tokens. The program also keeps a mirrored prompt string so the next model call can see the partial completion.
-
-## Design decisions
-
-### Keep the application logic separate from the model
-
-The repository treats the model as a dependency, not as the source of truth. The app decides what is valid, what order fields appear in, and when the JSON object is complete.
-
-### Use JSON fixtures as the interface
-
-Function definitions and test prompts live in JSON files. That makes the project easy to run, easy to swap with new datasets, and easy to inspect without touching code.
-
-### Validate early
-
-`DataChecker` verifies that the input files exist and that the loaded objects match the expected schema before generation starts. This avoids failing halfway through decoding.
-
-### Default paths with CLI overrides
-
-The project has sensible defaults for the function definitions, prompts, output file, and model name, but each of them can be overridden from the command line.
-
-### Greedy masked decoding
-
-The implementation uses the highest-scoring token from the allowed set at each step. This keeps the control flow simple and deterministic, which is useful when the goal is schema compliance rather than creative text generation.
+At each decoding step, logits are masked so every disallowed token gets `-inf`, then argmax picks the highest remaining token. This means output quality depends on both model probabilities and how good the allowed token pools are.
 
 ## Input format
 
 ### Function definitions
 
-Each function entry must provide:
+Each function object is expected to include:
 
-- a `name`,
-- a short `description`,
-- a `parameters` object where every parameter declares a type,
-- and a `returns` object.
+- `name`: string
+- `description`: string
+- `parameters`: object where each parameter has a supported `type`
+- `returns`: object (used by validation schema)
 
 Example:
 
@@ -107,9 +109,15 @@ Example:
 }
 ```
 
-### Prompts
+Supported parameter types in current code:
 
-The input prompt file is a list of objects with a single `prompt` field:
+- `string`
+- `number`
+- `integer`
+
+### Prompt input
+
+The prompt file must be a list of objects with a `prompt` field:
 
 ```json
 [
@@ -119,9 +127,13 @@ The input prompt file is a list of objects with a single `prompt` field:
 
 ## Output format
 
-The program writes a JSON array to the output file. Each item contains the original prompt together with the generated function call.
+The output file is a JSON array. Each item contains:
 
-Example shape:
+- `prompt`
+- `name` (selected function)
+- `parameters` (generated arguments)
+
+Example:
 
 ```json
 [
@@ -136,27 +148,61 @@ Example shape:
 ]
 ```
 
-## Running the project
+## Run and development commands
 
-The Makefile provides the main entrypoints:
+From the repository root:
 
-- `make install` to install dependencies with `uv`.
-- `make run` to execute the application.
-- `make lint` to run style and type checks.
+- `make install` -> install dependencies using `uv sync`
+- `make run` -> run the app with default files (`uv run -m src`)
+- `make lint` -> run `flake8` and `mypy`
+- `make lint-strict` -> run strict mypy checks
+- `make clean` -> remove Python cache artifacts
 
-You can also override the data files or model at runtime:
+Run with explicit overrides:
 
 ```bash
-uv run -m src --functions_definition data/input/functions_definition.json --input data/input/function_calling_tests.json --output data/output/result.json --model Qwen/Qwen3-0.6B
+uv run -m src \
+	--functions_definition data/input/functions_definition.json \
+	--input data/input/function_calling_tests.json \
+	--output data/output/result.json \
+	--model Qwen/Qwen3-0.6B
 ```
 
-## Limitations
+## Notes and limitations
 
-- The numeric and string token filters are heuristic.
-- The code assumes the model vocabulary is accessible from the local SDK.
-- The generation loop is tailored to the current JSON shape and function-call structure.
-- Empty prompts are rejected.
+- Type-based token filtering is heuristic, not grammar-complete.
+- Integer generation currently shares the number token pool.
+- The current decoding loop targets one specific JSON function-call shape.
+- Empty prompts are skipped.
 
-## Project goal
+## Design decisions
 
-The goal of the project is not to build a general-purpose agent. The goal is to show how a local LLM can be forced to emit structured function-call JSON through constrained decoding and lightweight schema validation.
+- Greedy decoding with token masking
+	- Chosen for simplicity and deterministic output under constraints.
+	- Easier to debug than beam search or sampling in this project scope.
+
+- Type-driven token pools instead of full JSON grammar
+	- Kept implementation lightweight and fast to iterate.
+	- Accepts weaker guarantees in exchange for lower complexity.
+
+- Pydantic validation before model execution
+	- Fails early on malformed inputs and keeps runtime logic cleaner.
+	- Prevents decoding from running on invalid schemas.
+
+- Single-call output contract
+	- The prompt and parser are optimized for exactly one function call per input prompt.
+	- Reduces ambiguity and keeps output formatting predictable.
+
+## Challenges and trade-offs
+
+- Token-level constraints are approximate
+	- Character-based pools (`string.printable`, numeric chars) are heuristic and not a full parser.
+
+- Integer vs number precision
+	- `integer` currently reuses number tokens, so strict integer-only enforcement is limited.
+
+- Boundary detection during parameter generation
+	- Stopping on `,` / `}` is practical but can be fragile for unusual tokenization patterns.
+
+- Tight coupling to one JSON shape
+	- Current state machine is specialized for `{name, parameters}` and is not yet a general constrained JSON engine.

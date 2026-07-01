@@ -97,10 +97,10 @@ def functions_as_prompt(functions_definition: list) -> str:
     lines = []
     for function in functions_definition:
         parameters = ", ".join(
-            f"{name}:{spec['type']}"
-            for name, spec in function["parameters"].items()
+            f"{name}:{spec.type}"
+            for name, spec in function.parameters.items()
         )
         lines.append(
-            f"- {function['name']}({parameters}): {function['description']}"
+            f"- {function.name}({parameters}): {function.description}"
         )
     return "\n".join(lines)
