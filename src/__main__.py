@@ -47,13 +47,18 @@ class Engine:
         self.data_source: dict[str, str] = {}
         self.prompts: list[PromptItem] = []
         self.functions_definition: list[FunctionDefinition] = []
-        self.llm = sdk()
+        self.llm = None
 
     def checker(self) -> None:
         """Load the input files and validate their content."""
         try:
             checker = DataChecker(sys.argv)
             self.data_source = checker.check()
+            try:
+                self.llm = sdk(self.data_source["model"])
+            except Exception:
+                print("Error: Invalide llm")
+                exit()
             checker.valid_json()
             self.functions_definition = cast(
                 list[FunctionDefinition], checker.func_def_final

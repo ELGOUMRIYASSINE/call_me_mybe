@@ -26,13 +26,12 @@ class DataChecker:
     def __init__(self, args: list[str]) -> None:
         self.args = args
         self.data_source: dict[str, str] = {}
-        self.tools: list[str] = ["--functions_definition", "--input", "--output"]
+        self.tools: list[str] = ["--functions_definition", "--input", "--output", "--model"]
         self.defauls: dict[str, str] = {
             "--functions_definition": "data/input/functions_definition.json",
             "--input": "data/input/function_calling_tests.json",
             "--output": "data/output/result.json",
-            "--model": ""
-            
+            "--model": "Qwen/Qwen3-0.6B"
         }
         self.inputes_final: list[dict[str, Any]] = []
         self.func_def_final: list[dict[str, Any]] = []
@@ -50,8 +49,10 @@ class DataChecker:
                         None,
                     )
                     if next_value:
-                        if Path(next_value).is_file():
+                        if Path(next_value).is_file() and not tool == "--model":
                             self.data_source[tool.replace("-", "")] = next_value
+                        elif tool == "--model":
+                            self.data_source[tool.replace("-", "")] = next_value                          
                         elif tool == "--output":
                             path = Path(next_value)
                             path.parent.mkdir(parents=True, exist_ok=True)
