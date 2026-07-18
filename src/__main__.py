@@ -47,15 +47,18 @@ class Engine:
                 FunctionDefinition.model_validate(item)
                 for item in checker.func_def_final
             ]
+            # print("All files are valid and ready to be processed.")
+            # exit()
             self.prompts = [
                 PromptItem.model_validate(item)
                 for item in checker.inputes_final
             ]
-        except (json.JSONDecodeError, FileNotFoundError):
+        except (json.JSONDecodeError, FileNotFoundError, Exception):
             print(
                 "Somthing Went Wrong With Your provided file or default files"
             )
-            raise SystemExit(1)
+            # raise SystemExit(1)
+            exit()
 
     def grep_prompt(self, prompt: PromptItem) -> str:
         """Build the instruction prompt for one user request."""

@@ -1,10 +1,10 @@
 [
     {
-        "prompt": "What is the sum of 2 and 3?",
+        "prompt": "Calculate the sum of 10 and 10.",
         "name": "fn_add_numbers",
         "parameters": {
-            "a": 2.0,
-            "b": 3.0
+            "a": 10,
+            "b": 10
         }
     }
 ]

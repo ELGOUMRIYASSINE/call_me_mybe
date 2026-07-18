@@ -1,5 +1,41 @@
 # call_me_mybe
 
+## How to run
+
+From the repository root:
+
+1. Install dependencies:
+
+```bash
+uv sync
+```
+
+2. Run the project:
+
+```bash
+uv run -m src
+```
+
+Optional Makefile shortcuts:
+
+- `make install` -> runs `uv sync`
+- `make run` -> runs `uv run -m src`
+
+## Where to put prompts and function definitions
+
+Use the `data` folder files below:
+
+- `data/input/function_calling_tests.json`
+	- Put your prompts here.
+	- Expected shape: a JSON list of objects with a `prompt` field.
+
+- `data/input/functions_definition.json`
+	- Put your function definitions here.
+	- Each function should include `name`, `description`, `parameters`, and `returns`.
+
+- `data/output/result.json`
+	- Generated results are written here when you run the project.
+
 This project converts natural-language prompts into structured function-call JSON using constrained decoding. Instead of trusting the model to freely emit valid JSON, the code limits generation to token sets that match function names and parameter types.
 
 ## Current repository structure
