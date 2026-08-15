@@ -25,8 +25,8 @@ class Engine:
 
     @staticmethod
     def _encode_to_ids(llm_obj: sdk, text: str) -> list[int]:
-        """Return a flat list of token ids "
-        "regardless of tensor/list internals."""
+        """Encode the text and return its "
+        "token IDs as a one-dimensional list."""
         encoded_ids = cast(Any, llm_obj.encode(text)).tolist()
         if encoded_ids and isinstance(encoded_ids[0], list):
             return cast(list[int], encoded_ids[0])
@@ -40,15 +40,13 @@ class Engine:
             try:
                 self.llm = sdk(self.data_source["model"])
             except Exception:
-                print("Error: Invalide llm")
+                print("Error: Invalide llm Model")
                 exit()
             checker.valid_json()
             self.functions_definition = [
                 FunctionDefinition.model_validate(item)
                 for item in checker.func_def_final
             ]
-            # print("All files are valid and ready to be processed.")
-            # exit()
             self.prompts = [
                 PromptItem.model_validate(item)
                 for item in checker.inputes_final
@@ -57,7 +55,6 @@ class Engine:
             print(
                 "Somthing Went Wrong With Your provided file or default files"
             )
-            # raise SystemExit(1)
             exit()
 
     def grep_prompt(self, prompt: PromptItem) -> str:
@@ -104,7 +101,6 @@ class Engine:
             if not prompt.prompt:
                 print("Warning: empty string founded (passed)")
                 continue
-            state = "name"
             general_prompt = self.grep_prompt(prompt) + tools["start"]
             prompt_text = prompt.prompt.replace('"', '\\"')
             result = (
@@ -114,16 +110,11 @@ class Engine:
                 + ','
                 + tools["start"]
             )
-            # result = '{' + f'"prompt": "{prompt_text}",' + tools["start"]
-            valid_tokens = get_next_func_token(valid_functions_tokens)
-            tokens = llm_obj.get_logits_from_input_ids(
-                self._encode_to_ids(llm_obj, general_prompt)
-            )
-            output = next_token_getter(llm_obj, tokens, valid_tokens)
-            general_prompt += output
-            result += output
+            valid_tokens = []
+            tokens = {}
+            output = ""
             name_found = False
-
+            state = "name"
             while "}}" not in result:
                 for function_name in function_names:
                     if function_name in result and state == "name":

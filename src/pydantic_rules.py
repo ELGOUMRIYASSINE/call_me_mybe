@@ -15,6 +15,7 @@ class FunctionDefinition(BaseModel):
     name: str
     description: str
     parameters: dict[str, ParameterSpec]
+    returns: dict[str, str]
 
 
 class PromptItem(BaseModel):
@@ -30,18 +31,3 @@ class ValidTokenData(BaseModel):
     number: list[int]
     string: list[int]
     integer: list[int]
-
-
-class func_definition(BaseModel):
-    """Describe one callable function from the input schema."""
-
-    name: str
-    description: str
-    parameters: dict
-    returns: dict
-
-
-class inputFormat(BaseModel):
-    """Describe one user prompt from the input file."""
-
-    prompt: str

@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .pydantic_rules import inputFormat, func_definition
+from .pydantic_rules import PromptItem, FunctionDefinition
 
 
 class DataChecker:
@@ -32,7 +32,7 @@ class DataChecker:
                 if tool in self.args:
                     next_value = next(
                         (
-                            self.args[index + 1]
+                            self.args[index + 1] #  + 1 because the first arg in the list is just the file name
                             for index, value in enumerate(self.args)
                             if value == tool
                         ),
@@ -116,8 +116,8 @@ class DataChecker:
                 self.func_def_final = json.load(func_def)
                 self.inputes_final = json.load(inputs)
                 for fun in self.func_def_final:
-                    func_definition.model_validate(fun)
+                    FunctionDefinition.model_validate(fun)
                 for promp in self.inputes_final:
-                    inputFormat.model_validate(promp)
+                    PromptItem.model_validate(promp)
             except Exception:
                 print("conversion failed while validating json format")
