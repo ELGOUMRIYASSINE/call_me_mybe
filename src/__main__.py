@@ -5,6 +5,7 @@ from typing import Any, cast
 from llm_sdk import Small_LLM_Model as sdk
 from .data_checker import DataChecker
 from .pydantic_rules import FunctionDefinition, PromptItem
+from pathlib import Path
 from .constrained_tools import (
     get_next_func_token,
     get_valid_tokens,
@@ -195,10 +196,15 @@ class Engine:
             state_printer(result)
             results.append(json.loads(result))
 
-        # create missing directories
+        path = Path(self.data_source["output"])
+        path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.data_source["output"], "w") as file:
             json.dump(results, file, indent=4)
 
 
 if __name__ == "__main__":
+    # try:
     Engine().main()
+    # except Exception:
+    #     print("Programm Faild!")
+    #     sys.exit(1)
