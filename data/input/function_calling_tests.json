@@ -1,32 +1,35 @@
 [
   {
-    "prompt": "Replace all currency symbols with 'USD' in 'Price: \\$50, Discount: \\$5'"
+    "prompt": "What is the sum of 2 and 3?"
   },
   {
-    "prompt": "Extract the domain from this Windows share path: \\\\Server01\\Shared\\Docs"
+    "prompt": "What is the sum of 265 and 345?"
   },
   {
-    "prompt": "Replace the percent sign with the word 'percent' in '50\\% off today'"
+    "prompt": "Greet shrek"
   },
   {
-    "prompt": "Given the string 'She said, \\\"stop right there!\\\"', remove the quotation marks"
+    "prompt": "Greet john"
   },
   {
-    "prompt": "Convert this JSON snippet to plain text: {\\\"name\\\": \\\"John\\\", \\\"age\\\": 30}"
+    "prompt": "Reverse the string 'hello'"
   },
   {
-    "prompt": "Replace underscore characters with spaces in 'file\\_name\\_final\\_v2'"
+    "prompt": "Reverse the string 'world'"
   },
   {
-    "prompt": "Simplify this LaTeX equation and return it as LaTeX: \\sqrt{16} + \\frac{2}{4}"
+    "prompt": "What is the square root of 16?"
   },
   {
-    "prompt": "Take the regex pattern '^\\\\d{3}-\\\\d{2}-\\\\d{4}$' and explain what it matches"
+    "prompt": "Calculate the square root of 144"
   },
   {
-    "prompt": "Replace the newline markers with spaces in 'First line\\nSecond line\\nThird line'"
+    "prompt": "Replace all numbers in \"Hello 34 I'm 233 years old\" with NUMBERS"
   },
   {
-    "prompt": "Convert the CSV row 'John\\,25\\,NYC' into a comma-separated list without the escape characters"
+    "prompt": "Replace all vowels in 'Programming is fun' with asterisks"
+  },
+  {
+    "prompt": "Substitute the word 'cat' with 'dog' in 'The cat sat on the mat with another cat'"
   }
 ]
