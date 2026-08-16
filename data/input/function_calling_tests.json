@@ -1,3 +1,32 @@
-[{
-     "prompt": "Calculate the sum of 10 and 10."
-}]
+[
+  {
+    "prompt": "Replace all currency symbols with 'USD' in 'Price: \\$50, Discount: \\$5'"
+  },
+  {
+    "prompt": "Extract the domain from this Windows share path: \\\\Server01\\Shared\\Docs"
+  },
+  {
+    "prompt": "Replace the percent sign with the word 'percent' in '50\\% off today'"
+  },
+  {
+    "prompt": "Given the string 'She said, \\\"stop right there!\\\"', remove the quotation marks"
+  },
+  {
+    "prompt": "Convert this JSON snippet to plain text: {\\\"name\\\": \\\"John\\\", \\\"age\\\": 30}"
+  },
+  {
+    "prompt": "Replace underscore characters with spaces in 'file\\_name\\_final\\_v2'"
+  },
+  {
+    "prompt": "Simplify this LaTeX equation and return it as LaTeX: \\sqrt{16} + \\frac{2}{4}"
+  },
+  {
+    "prompt": "Take the regex pattern '^\\\\d{3}-\\\\d{2}-\\\\d{4}$' and explain what it matches"
+  },
+  {
+    "prompt": "Replace the newline markers with spaces in 'First line\\nSecond line\\nThird line'"
+  },
+  {
+    "prompt": "Convert the CSV row 'John\\,25\\,NYC' into a comma-separated list without the escape characters"
+  }
+]

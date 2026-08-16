@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 from typing import Any
-
 from .pydantic_rules import PromptItem, FunctionDefinition
 
 
@@ -32,7 +31,9 @@ class DataChecker:
                 if tool in self.args:
                     next_value = next(
                         (
-                            self.args[index + 1] #  + 1 because the first arg in the list is just the file name
+                            # + 1 because the first arg in the
+                            # list is just the file name
+                            self.args[index + 1]
                             for index, value in enumerate(self.args)
                             if value == tool
                         ),
@@ -71,7 +72,13 @@ class DataChecker:
     @staticmethod
     def escape_detecter(output: str) -> str:
         valid_ecapes = ['"', "\\"]
-        if output == "\\":
+        if (
+            output == "\\"
+            or (
+                output[len(output) - 1] == "\\"
+                and output[len(output) - 2] != "\\"
+            )
+        ):
             return output + "\\"
         i = 0
         while i < len(output):

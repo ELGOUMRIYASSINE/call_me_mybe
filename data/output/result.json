@@ -1,10 +1,84 @@
 [
     {
-        "prompt": "Calculate the sum of 10 and 10.",
-        "name": "fn_add_numbers",
+        "prompt": "Replace all currency symbols with 'USD' in 'Price: \\$50, Discount: \\$5'",
+        "name": "fn_substitute_string_with_regex",
         "parameters": {
-            "a": 10,
-            "b": 10
+            "source_string": "Price: \\$50",
+            "regex": "\\$",
+            "replacement": "USD"
+        }
+    },
+    {
+        "prompt": "Extract the domain from this Windows share path: \\\\Server01\\Shared\\Docs",
+        "name": "fn_get_square_root",
+        "parameters": {
+            "a": 1234567890.0
+        }
+    },
+    {
+        "prompt": "Replace the percent sign with the word 'percent' in '50\\% off today'",
+        "name": "fn_substitute_string_with_regex",
+        "parameters": {
+            "source_string": "50\\% off today",
+            "regex": "\\%",
+            "replacement": "percent"
+        }
+    },
+    {
+        "prompt": "Given the string 'She said, \\\\\"stop right there!\\\\\"', remove the quotation marks",
+        "name": "fn_substitute_string_with_regex",
+        "parameters": {
+            "source_string": "She said",
+            "regex": "\"",
+            "replacement": "\""
+        }
+    },
+    {
+        "prompt": "Convert this JSON snippet to plain text: {\\\\\"name\\\\\": \\\\\"John\\\\\", \\\\\"age\\\\\": 30}",
+        "name": "fn_get_square_root",
+        "parameters": {
+            "a": 30.0
+        }
+    },
+    {
+        "prompt": "Replace underscore characters with spaces in 'file\\_name\\_final\\_v2'",
+        "name": "fn_substitute_string_with_regex",
+        "parameters": {
+            "source_string": "file\\_name\\_final\\v2",
+            "regex": "\\\\_",
+            "replacement": ""
+        }
+    },
+    {
+        "prompt": "Simplify this LaTeX equation and return it as LaTeX: \\sqrt{16} + \\frac{2}{4}",
+        "name": "fn_get_square_root",
+        "parameters": {
+            "a": 16.0
+        }
+    },
+    {
+        "prompt": "Take the regex pattern '^\\\\d{3}-\\\\d{2}-\\\\d{4}$' and explain what it matches",
+        "name": "fn_get_square_root",
+        "parameters": {
+            "a": 1234567890.0
+        }
+    },
+    {
+        "prompt": "Replace the newline markers with spaces in 'First line\\nSecond line\\nThird line'",
+        "name": "fn_substitute_string_with_regex",
+        "parameters": {
+            "source_string": "First line\\nSecond line\\nThird line",
+            "regex": "\\s*\\n",
+            "replacement": " \""
+        }
+    },
+    {
+        "prompt": "Convert the CSV row 'John\\,25\\,NYC' into a comma-separated list without the escape characters",
+        "name": "fn_substitute_string_with_regex",
+        "parameters": {
+            "source_string": "John\\",
+            "regex": "\\",
+            "replacement": "NYC"
         }
     }
 ]

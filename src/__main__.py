@@ -110,10 +110,10 @@ class Engine:
                 + ','
                 + tools["start"]
             )
-            valid_tokens = []
-            tokens = {}
-            output = ""
-            name_found = False
+            valid_tokens: list = []
+            tokens: list[float] = []
+            output: str = ""
+            name_found: bool = False
             state = "name"
             while "}}" not in result:
                 for function_name in function_names:
@@ -166,7 +166,6 @@ class Engine:
                                     )
                                     general_prompt += output
                                     result += output
-
                             if param_type.type == "string":
                                 general_prompt += '"'
                                 result += '"'
@@ -174,7 +173,6 @@ class Engine:
                                   and "." not in result):
                                 result += ".0"
                                 general_prompt += ".0"
-
                         general_prompt += "}}"
                         result += "}}"
                         general_prompt += "\n"
